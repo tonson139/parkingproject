@@ -1,4 +1,6 @@
 <?php
+/* This script is extracting(form package sent by CAT portal) and saving to 'log' table,
+also decoding payload filed-Temperature,Humidity-save to 'log' table */  
 include 'Config.php';
 $conn = mysqli_connect($Hostname, $HostUser, $HostPass, $DatabaseName);
 mysqli_set_charset($conn, "utf8");
@@ -16,20 +18,36 @@ $payload_hex = $jsdata["DevEUI_uplink"]["payload_hex"];
 $LrrRSSI = $jsdata["DevEUI_uplink"]["LrrRSSI"];
 $LrrSNR = $jsdata["DevEUI_uplink"]["LrrSNR"];
 $SpFact = $jsdata["DevEUI_uplink"]["SpFact"];
+$Lrrid = $jsdata["DevEUI_uplink"]["Lrrid"];
+
+//convert field temp and humidity 
+$fieldcheck = TRUE;
+$temperature = "";
+$humidity = "";
+for($i = 2; $i < 7; $i++){
+        $temperature = $temperature.$payload_hex[$i];
+        $humidity = $humidity.$payload_hex[$i+5];
+}
+$temperature = (int)$temperature/100;
+$humidity = (int)$humidity/100;
+
 //insert to table log  
 if (isset($jsdata["DevEUI_uplink"])) {
-    $sql = "INSERT INTO log (DevEUI , DevAddr, FCntUp, payload_hex, LrrRSSI, LrrSNR, SpFact)
-            VALUES ('$DevEUI', '$DevAddr', '$FCntUp', '$payload_hex', '$LrrRSSI', '$LrrSNR', '$SpFact')";
+    $sql = "INSERT INTO log (DevEUI , DevAddr, FCntUp, payload_hex, LrrRSSI, LrrSNR, SpFact, Lrrid, temperature, humidity)
+            VALUES ('$DevEUI', '$DevAddr', '$FCntUp', '$payload_hex', '$LrrRSSI', '$LrrSNR', '$SpFact', '$Lrrid', $temperature, $humidity)";
     if (mysqli_query($conn, $sql)) {
         echo "New record created successfully";
     } else {
         echo "Error: " . $sql . "<br>" . mysqli_error($conn);
     }
 } else echo "NULL value detected <b>pls push this link in routing profile<b>";
+
+
 mysqli_close($conn);
 ?>
 
 <?php
+/*This script is extracting(form package sent by CAT portal) , decoding payload field and saving to 'STATE_TABLE' table */
 include 'Config.php';
 $conn = mysqli_connect($Hostname, $HostUser, $HostPass, $DatabaseName);
 mysqli_set_charset($conn, "utf8");
@@ -50,20 +68,29 @@ $FPort = $jsdata["DevEUI_uplink"]["FPort"];
 $payload_hex = $jsdata["DevEUI_uplink"]["payload_hex"];
 
 /*DECODING PART
-   PAYLOAD FORMAT XY (2 STRING)
-   FIELD Status X ($payload_hex[0]) define Lot_id_A and Lot_id_B STATUS 
-      AVALIABLE = RETURN TRUE
-      PARKED = RETURN FALSE 
-      0 = BOTH PARKED
-      1 = A PARKED/B AVALIABLE 
-      2 = A AVALIABLE/B PARKED
-      3 = BOTH AVALIABLE
-      otherwise = return error_lotidField 
-   FIELD Battery Y ($payload_hex[1]) IS battery 
-      range between 0 - 10 integer 
-      %battery = Y*10 
-      Ex Y = 5 -> %battery = 5*10 = 50%; 
-   */
+    PAYLOAD FORMAT X Y TTTTT HHHHH (2 STRING)
+    Example 1a0605004350 = 1 a 06050 04350 -> meaning A PARKED/B AVALIABLE, 100% battery, 60.50% temperature, 43.50% humidity 
+    FIELD Status X ($payload_hex[0]) define Lot_id_A and Lot_id_B STATUS 
+        AVALIABLE = RETURN TRUE
+        PARKED = RETURN FALSE 
+        0 = BOTH PARKED
+        1 = A PARKED/B AVALIABLE 
+        2 = A AVALIABLE/B PARKED
+        3 = BOTH AVALIABLE
+        otherwise = return error_lotidField 
+    FIELD Battery Y ($payload_hex[1]) IS battery 
+        range between 0 - 10 integer 
+        %battery = Y*10 
+        Ex Y = 5 -> %battery = 5*10 = 50%; 
+        FIELD Battery Y ($payload_hex[1]) IS battery 
+        range between 0 - 10 integer 
+        %battery = Y*10 
+        Ex Y = 5 -> %battery = 5*10 = 50%; 
+        FIELD Battery Y ($payload_hex[1]) IS battery 
+        range between 0 - 10 integer 
+        %battery = Y*10 
+        Ex Y = 5 -> %battery = 5*10 = 50%; 
+*/
 
 //Query Lot_id from DevEUI, Result has either one or two row. 
 //Order result by ascending value of Lot_id, It's Lot_id_A and Lot_id_B respectively In other words Lot_id_A < Lot_id_B
@@ -124,17 +151,16 @@ for ($i = 0; $i < 2; $i++) {
             //For Debug
             $everythingcomplete = TRUE;
         } else {
-            echo "Error ::  insert status and BAT to Database" . $sql  . "<br>" . mysqli_error($conn);
+            echo "Error ::  insert status and BAT to Database :: " . $sql  . " :: " . mysqli_error($conn);
         }
     }
 }
 
 //For Debug 
 if ($everythingcomplete) {
-    echo "Received (Time : $Time, DevEUI : $DevEUI, DevAddr : $DevAddr, FPort : $FPort, payload_hex = $payload_hex)<br>";
-    echo "Decode (Lot_Id_A : $Lot_id[0], Lot_Status_A : $Lot_Status[0], Lot_Id_B : $Lot_id[1], Lot_Status_B : $Lot_Status[1], Board_Status = Null, Board_Battery = $battery)<br>";
+    echo "Received (Time : $Time, DevEUI : $DevEUI, DevAddr : $DevAddr, FPort : $FPort, payload_hex = $payload_hex)";
+    echo "Decode (Lot_Id_A : $Lot_id[0], Lot_Status_A : $Lot_Status[0], Lot_Id_B : $Lot_id[1], Lot_Status_B : $Lot_Status[1], Board_Status = Null, Board_Battery = $battery, Temperature = $temperature, Humidity = $humidity)";
 }
 
 mysqli_close($conn);
 ?>
-
